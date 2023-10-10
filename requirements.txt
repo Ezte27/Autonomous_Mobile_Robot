@@ -1,0 +1,8 @@
+# Programs like pip can be used to install all packages listed in the file in one fell swoop. 
+# After that you can start developing your python script. 
+# Especially useful if you plan to have others contribute to the development or use virtual environments. 
+# This is how you use it:
+# pip install -r requirements.txt
+
+numpy
+matplotlib == 3.8.0
