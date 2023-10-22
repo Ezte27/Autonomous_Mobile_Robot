@@ -4,5 +4,8 @@
 # This is how you use it:
 # pip install -r requirements.txt
 
+colorama
 numpy
 matplotlib == 3.8.0
+pygame
+rtree == 1.1.0

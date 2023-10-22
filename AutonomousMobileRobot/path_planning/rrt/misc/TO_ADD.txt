@@ -1,0 +1,7 @@
+Add a 'robot'(https://www.youtube.com/watch?v=Tllz7Ox2B3g) that follows the path made by the rrt algoritm and avoids any dynamic obstacle.
+Add a way to make the goal of the rrt be the mouse position when clicked.
+Add so you can change the goal whenever you desire.
+Add space in between the obstacles and the randomly generated nodes so that when the tree starts growing it 
+    does not grow very close to the obs, and so the robot when following the path doesnt crash with the obs.
+
+Make a SLAM simulation (https://www.youtube.com/watch?v=2GJuEIh4xGo&t=0s) so that the path-finding/planning, mapping, localization, control systems can be tested.
