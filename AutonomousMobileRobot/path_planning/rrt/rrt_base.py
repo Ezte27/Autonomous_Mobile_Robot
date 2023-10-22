@@ -1,7 +1,9 @@
-import random
+import random, sys
 
 import numpy as np
+import pygame
 
+from AutonomousMobileRobot.path_planning.rrt.config import *
 from AutonomousMobileRobot.path_planning.rrt.tree import Tree
 from AutonomousMobileRobot.path_planning.rrt.utilities.geometry import steer
 
@@ -176,3 +178,45 @@ class RRTBase(object):
         point = np.maximum(point, self.X.dimension_lengths[:, 0])
         point = np.minimum(point, self.X.dimension_lengths[:, 1])
         return tuple(point)
+    
+    def draw_search(self, obstacles, screen, clock, solution=None, angle=None, xc=None, yc=None, a=None, b=None):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+                            
+        screen.fill(WHITE)
+
+        # Draw obstacles
+        for obstacle in obstacles:
+            pygame.draw.rect(screen, BLACK, obstacle)
+
+        # Draw nodes and edges
+        for i, tree in enumerate(self.trees):
+            for start, end in tree.E.items():
+                if end is not None:
+                    pygame.draw.circle(screen, BLUE, start, node_rad)   # Node or vertex
+                    pygame.draw.line(screen, GREY, start, end)          # Edge
+                        
+        # Draw start and goal
+        pygame.draw.circle(screen, RED, self.x_init, node_rad * 2)
+        pygame.draw.circle(screen, GREEN, self.x_goal, node_rad * 2)
+
+        # Draw solution and ellipse
+        if solution is not None:
+            for node in solution[1:-1]: # Exclude the first and last nodes as they are the start and goal nodes.
+                pygame.draw.circle(screen, YELLOW, node, node_rad)
+            
+            # Calculate x and y coordinates for the points on the rotated ellipse
+            x = xc + a * np.cos(theta) * np.cos(angle) - b * np.sin(theta) * np.sin(angle)
+            y = yc + a * np.cos(theta) * np.sin(angle) + b * np.sin(theta) * np.cos(angle)
+            points = list(zip(x, y))
+
+            # Draw the ellipse
+            for point in points:
+                pygame.draw.circle(screen, PURPLE, (point[0], point[1]), point_rad)
+
+
+
+        pygame.display.update()
+        clock.tick(FPS)

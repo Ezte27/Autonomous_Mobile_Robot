@@ -1,6 +1,6 @@
 from operator import itemgetter
 
-import pygame, sys
+import pygame
 
 from AutonomousMobileRobot.path_planning.rrt.config import *
 from AutonomousMobileRobot.path_planning.rrt.heuristics import cost_to_go

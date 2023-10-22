@@ -4,9 +4,8 @@ import pygame, sys, math, random, copy
 
 from AutonomousMobileRobot.path_planning.rrt.config import *
 from AutonomousMobileRobot.path_planning.rrt.utilities.geometry import distance_between_points, check_node_in_ellipse
-from AutonomousMobileRobot.path_planning.rrt.heuristics import path_cost, segment_cost
+from AutonomousMobileRobot.path_planning.rrt.heuristics import path_cost
 from AutonomousMobileRobot.path_planning.rrt.rrt_star import RRTStar
-
 
 class IRRTStar(RRTStar):
     def __init__(self, X, Q, x_init, x_goal, max_samples, r, prc=0.01, rewire_count=None):
@@ -35,9 +34,9 @@ class IRRTStar(RRTStar):
         self.past_solution = None
         self.best_cbest = float('inf')
 
-    def update_ellipse(self, cbest):
-        self.a = cbest / 2
-        self.b = math.sqrt(cbest**2 - self.cmin**2) / 2
+    def update_ellipse(self, cbest=None):
+        self.a = self.best_cbest / 2 if cbest is None else cbest / 2
+        self.b = math.sqrt(self.best_cbest**2 - self.cmin**2) / 2 if cbest is None else math.sqrt(cbest**2 - self.cmin**2) / 2
 
     def check_delta_solution(self, solution:list) -> bool: # Check for change in solution
         """
@@ -60,53 +59,32 @@ class IRRTStar(RRTStar):
         """
         This method checks if there is a better solution than the current solution by comparing the current solution's cbest with the new solution. The new solution is searched in this method.
         """
-        # check for new solution
-        x_nearest = self.get_nearest(tree, self.x_goal)
-        if self.prc and random.random() < self.prc:
-            # if self.X.collision_free(x_nearest, self.x_goal, self.r):  # check if obstacle-free
-            if self.check_solution_cost(tree, x_nearest):
-                print("New solution found!!!")
-                self.trees[tree].E[self.x_goal] = x_nearest
-                solution = self.reconstruct_path(tree, self.x_init, self.x_goal)
-                self.best_cbest = path_cost(self.trees[tree].E, self.focus1, self.focus2)
-                return solution
-        return self.past_solution
+       
+        solution = self.reconstruct_path(tree, self.x_init, self.x_goal)
+        if solution != self.past_solution:
+            print("New solution found!")
+        return solution
     
-    def check_solution_cost(self, tree, x_nearest):
-        """
-        Creates a duplicate tree where you reconstruct the path and then check if cost of new solution is less than current solution cost.
-        :param tree: int, tree being checked
-        :return: bool, True if cost is less than current solution cost, False otherwise.
-        """
-        self.trees.append(copy.deepcopy(self.trees[tree]))
-        self.trees[tree+1].E[self.x_goal] = x_nearest
-        new_solution = self.reconstruct_path(tree+1, self.x_init, self.x_goal)
-        new_cbest = path_cost(self.trees[tree+1].E, self.focus1, self.focus2)
-        del self.trees[tree+1]
-        return (new_cbest < self.best_cbest) # The less the cost the better
-
-    def check_new_cbest(self, tree):
-        new_cbest = path_cost(self.trees[tree].E, self.focus1, self.focus2)
-        if (new_cbest < self.best_cbest):
-            self.best_cbest = new_cbest
-
-    def rewire_goal(self, tree, x_goal):
+    def rewire_node_to_goal(self, tree):
         """
         Rewire branches near goal to shorten solution if possible
         Only rewires vertices according to rewire count
         :param tree: int, tree to rewire
-        :param x_goal: tuple, the goal location
-        :param L_near: list of nearby vertices used to rewire
         :return:
         """
         # get nearby vertices and cost-to-come
-        L_near = self.get_nearby_vertices(0, self.x_init, x_goal)
+        L_near = self.get_nearby_vertices(0, self.x_init, self.x_goal)
 
-        for c_near, x_near in L_near:
-            curr_cost = path_cost(self.trees[tree].E, self.x_init, x_near)
-            tent_cost = path_cost(self.trees[tree].E, self.x_init, x_goal) + segment_cost(x_goal, x_near)
-            if tent_cost < curr_cost and self.X.collision_free(x_near, x_goal, self.r):
-                self.trees[tree].E[x_near] = x_goal
+        # check nearby vertices for total cost and connect shortest valid edge
+        self.connect_shortest_valid(0, self.x_goal, L_near)
+
+    def check_new_cbest(self, tree):
+        new_cbest = path_cost(self.trees[tree].E, self.focus1, self.focus2)
+        print(f'previous cbest = {self.best_cbest}')
+        print(f'new cbest = {new_cbest}')
+        print(f'cost decreased by {self.best_cbest - new_cbest}')
+        if (new_cbest < self.best_cbest):
+            self.best_cbest = new_cbest
 
     @staticmethod
     def _get_midpoint(a, b):
@@ -162,15 +140,14 @@ class IRRTStar(RRTStar):
                         print("Creating ellipse...") 
                         cbest = path_cost(self.trees[0].E, self.focus1, self.focus2)
                         self.update_ellipse(cbest)
-                        solution = solution[1]
-                        print(f'NEW solution FORMAT = {solution}')
-                        self.past_solution = solution
+                        solution = solution[1]          # Changing the solution variable from [bool, list of nodes] to just list of nodes
+                        self.past_solution = solution   # Updating the past solution variable
 
                         # Run IRRT*
                         while iteration < max_iterations:
-                            for q in self.Q:  # iterate over different edge lengths
-                                for i in range(q[1]):  # iterate over number of edges of given length to add
-                                    x_new, x_nearest = self.new_and_near(0, q)
+                            for q2 in self.Q:  # iterate over different edge lengths
+                                for j in range(q2[1]):  # iterate over number of edges of given length to add
+                                    x_new, _ = self.new_and_near(0, q)
                                     if x_new is None:
                                         continue
 
@@ -188,22 +165,25 @@ class IRRTStar(RRTStar):
                                         # rewire tree
                                         self.rewire(0, x_new, L_near)
                                     
-                                    self.rewire_goal(0, self.x_goal)
-
-                                    self.check_new_cbest(0) #solution = self.check_better_solution(0)
-                                    self.update_ellipse(cbest)
+                                    self.rewire_node_to_goal(0)
 
                                     # Update solution
                                     solution = self.check_better_solution(0)
 
                                     # If solution changed, update the ellipse
                                     if self.check_delta_solution(solution): 
+                                        
                                         print(f'NEW solution = {solution}')
+
+                                        self.check_new_cbest(0)
+
+                                        # Update ellipse parameters
+                                        self.update_ellipse()
                                     
                                     if pygame_draw:
                                         self.draw_search(obstacles, screen, clock, solution, self.angle, self.x_ellipse, self.y_ellipse, self.a, self.b)
                             iteration += 1
-                        return solution                      
+                        return solution, self.angle, self.x_ellipse, self.y_ellipse, self.a, self.b                      
                     
                     if pygame_draw:
                         self.draw_search(obstacles, screen, clock)
